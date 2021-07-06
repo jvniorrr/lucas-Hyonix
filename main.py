@@ -2,6 +2,7 @@ import discord, logging, json, os
 from dotenv import load_dotenv
 from discord.ext import commands
 from discord import Client
+from pymongo import database
 from models import hyonix, databaseMongo
 
 
@@ -135,3 +136,42 @@ async def restartServer(ctx, server_ip:str):
                 if reset == True:
                     await ctx.channel.send(f"Successfully restarted Server: {server_ip}")
                     return
+        await ctx.channel.send("Provide a valid server IP to perform actions.")
+        return
+
+@bot.command()
+@discord.ext.commands.dm_only()
+@commands.cooldown(1, 60 * 60, commands.BucketType.member)
+async def resetPassword(ctx, server_ip:str):
+    """Method to reset the password associated with the Administrator User."""
+
+    database = databaseMongo.Database(MONGO_USER, MONGO_PASSWORD)
+
+    hyonix_api = hyonix.HyonixAPI(HYONIX_TOKEN)
+
+    current_user = database.checkCurrentUser(ctx.author.id)
+
+    #  assure that the user is stored in the DB
+    if current_user == True:
+        # retrieve the users current information
+        userInformation = database.returnUserInformation(ctx.author.id)
+        for server in userInformation["servers"]:
+            if server["server_ip"] == server_ip:
+                password, reset = hyonix_api.resetPassword(server["server_id"])
+                if reset == True:
+                    await ctx.channel.send(f"Successfully reset the password for Server: {server_ip}")
+
+                    # create an embed with the new info
+                    hex_color = int(f"0xF9004D", 16)
+                    embed = discord.Embed(color=hex_color, title="Renowned Servers", author="Renowned Servers")
+                    embed.add_field("IP Address", server["server_ip"], False)
+                    embed.add_field("User", "Administrator", False)
+                    embed.add_field("Password", password, False)
+                    await ctx.channel.send(embed=embed)
+    
+                    return
+        await ctx.channel.send("Provide a valid server IP to perform actions.")
+        return
+
+
+

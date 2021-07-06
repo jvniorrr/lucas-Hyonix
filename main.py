@@ -114,6 +114,7 @@ async def removeEntry(ctx, member:discord.Member):
 # COMMANDS SPECIFICALLY FOR USER ACTIONS
 @bot.command()
 @discord.ext.commands.dm_only()
+@commands.cooldown(1, 60 * 5, commands.BucketType.member)
 async def restartServer(ctx, server_ip:str):
     """Method to reset a server / reboot it. This force shuts down and starts up."""
 

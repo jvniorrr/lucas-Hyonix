@@ -105,7 +105,7 @@ class HyonixAPI:
 
         # print(r.text)
 
-    def resetPassword(self, serverid) -> typing.Union[str, bool]:
+    def resetPassword(self, serverid):
         """Method to reset password for specified server id
         
         Parameters
@@ -113,24 +113,26 @@ class HyonixAPI:
         serverid : int
             - int value associated with server. UUID
         Returns
-        --------
-            - Tuple[str, bool]"""
+        --------"""
         headers = self.headers
+
+        PASSWORD = ""
 
         try:
 
-            r = requests.put(f'https://api.hyonix.com/v1/server/{serverid}/resetpassword')
+            r = requests.put(f'https://api.hyonix.com/v1/server/{serverid}/resetpassword', headers=headers, timeout=20)
             if r.status_code == 200:
                 data = r.json()
-                if "successfully sent" in data["message"].lower():
+                if "password reset request has been successfully sent" in data["message"].lower():
+                    # print(f"Password was changed for server {serverid}")
                     PASSWORD = data["password"]
                     return PASSWORD, True
         except json.JSONDecodeError:
             print("Error occured retrieving the json data from API.")
-            return None, False
+            return PASSWORD, False
         except Exception as e:
             print("Error occured resetting password.", e)
-            return None, False
+            return PASSWORD, False
 
 
 if __name__ == '__main__':

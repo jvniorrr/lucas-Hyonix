@@ -1,12 +1,13 @@
+from gc import collect
 from discord import user
+import discord
 import pymongo
 from pymongo import MongoClient
 from pymongo import collection
 import requests, os
 from dotenv import load_dotenv
-import hyonix
 
-load_dotenv(os.path.join(os.getcwd(), ".env"))
+# load_dotenv(os.path.join(os.getcwd(), ".env"))
 
 class Database:
     def __init__(self, user, password) -> None:
@@ -40,7 +41,7 @@ class Database:
 
         return collection
 
-    def entry(self, user_name, user_id, server_ref):
+    def entry(self, user_name, user_id, server_ref, due_date):
         """Method for entering a new entry to DB.
         
         Parameters
@@ -57,10 +58,14 @@ class Database:
         collection = self.returnCollection()
 
         #  retrieve information from HYONIX API and format it 
+        serversList = list()
+        server_ref["next_billing_date"] = due_date
+        serversList.append(server_ref)
         user = { 
             "name":user_name,
             "discord_id":user_id,
-            "servers": list(server_ref)
+            # "next_due_date": due_date,
+            "servers": serversList
         }
         
 
@@ -139,8 +144,8 @@ class Database:
         deleted = False
         # delete user entry
         try:
-            deleted = collection.delete_one({"discord_id":discord_id})
-            if deleted.deleted_count == 1:
+            deleted_resp = collection.delete_one({"discord_id":discord_id})
+            if deleted_resp.deleted_count == 1:
                 deleted = True
                 # return deleted
         except Exception as e:
@@ -148,7 +153,48 @@ class Database:
             
         finally:
             return deleted
-            
+    
+    def removeServer(self, discord_id, server_ip):
+        """Method to remove a specific server from a user that's already stored in the DB
+        
+        Parameters
+        ----------
+        discord_id : int
+            - int value associated with user
+        server_id : str
+            - server ip associated with the server being removed
+        
+        Returns
+        -------
+        bool"""
+        collection = self.returnCollection()
+        removed = False
+        try:
+            removed_resp = collection.update_one({"discord_id":discord_id}, {"$pull":{"servers":{"server_ip":server_ip}}})
+            removed = True
+        except Exception as e:
+            removed = False
+            print("Error occured removing server entry from DB", e)
+        finally:
+            return removed
+
+    def renewalDate(self, discord_id, due_date):
+        collection = self.returnCollection()
+
+        updatedStatus = False
+
+        try:
+            updated_resp = collection.update_one({"discord_id":discord_id}, {"$set":{"next_due_date":due_date}})
+            if updated_resp.modified_count == 1:
+                updatedStatus = True
+        except Exception as e:
+            updatedStatus = False
+            print("Error renewing the next due date.")
+
+        finally:
+            return updatedStatus
+
+
 
 
 

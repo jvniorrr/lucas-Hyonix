@@ -144,8 +144,10 @@ async def adduser(ctx):
             return
         else:
             await ctx.channel.send("Unknown error updating the users information. Making Developer aware.")
-            developer = bot.get_user(DEV_ID)
-            await developer.create_dm().send(f"Error occured updating User: {member.mention}")
+            developer = await bot.fetch_user(DEV_ID)
+            dmChan = await developer.create_dm()
+            msg = f"Error occured updating User: {member.mention}"
+            await dmChan.send(msg)
             return
 
     # if ths user is not in the DB
@@ -160,8 +162,10 @@ async def adduser(ctx):
         #  if the entry was unsuccessfull
         else:
             await ctx.channel.send("Unknown error creating a new users database entry. Making Developer aware.")
-            developer = bot.get_user(DEV_ID)
-            await developer.create_dm().send(f"Error occured creating a new entry for User: {member.mention}")
+            developer = await bot.fetch_user(DEV_ID)
+            dmChan = await developer.create_dm()
+            msg = f"Error occured creating a new entry for User: {member.mention}"
+            dmChan.send(msg)
             return
 
 
@@ -194,8 +198,10 @@ async def removeuser(ctx):
 
     if userInformation == None:
         await ctx.channel.send("Unknown error occured removing server from User from the database. Making Developer aware.")
-        developer = bot.get_user(DEV_ID)
-        await developer.create_dm().send(f"Error occured retrieving server information for User: {member.mention} database.")
+        developer = await bot.fetch_user(DEV_ID)
+        dmChan = await developer.create_dm()
+        msg = f"Error occured retrieving server information for User: {member.mention} database."
+        await dmChan.send(msg)
         return
 
 
@@ -221,8 +227,10 @@ async def removeuser(ctx):
                         return
                     else:
                         await ctx.channel.send("Unknown error occured removing server from User from the database. Making Developer aware.")
-                        developer = bot.get_user(DEV_ID)
-                        await developer.create_dm().send(f"Error occured removing User: {member.mention} server from the database.")
+                        developer = await bot.fetch_user(DEV_ID)
+                        dmChan =await developer.create_dm()
+                        msg = f"Error occured removing User: {member.mention} server from the database."
+                        await dmChan.send(msg)
                         return
 
             # return a msg if that ip isnt found in loop above
@@ -234,8 +242,10 @@ async def removeuser(ctx):
                 await ctx.channel.send("Successfully removed user from the database.")
             else:
                 await ctx.channel.send("Unknown error occured removing User from the database. Making Developer aware.")
-                developer = bot.get_user(DEV_ID)
-                await developer.create_dm().send(f"Error occured removing User: {member.mention} from the database.")
+                developer = await bot.fetch_user(DEV_ID)
+                dmChan = await developer.create_dm()
+                msg = f"Error occured removing User: {member.mention} from the database."
+                await dmChan.send(msg)
                 return
     return
 
@@ -277,8 +287,10 @@ async def renew(ctx):
 
     if renewedStatus == False:
         await ctx.channel.send("Unknown error updating the users renewal date. Making Developer aware.")
-        developer = bot.get_user(DEV_ID)
-        await developer.create_dm().send(f"Error occured updating the renewal date for User: {member.mention}")
+        developer = await bot.fetch_user(DEV_ID)
+        dmChan = await developer.create_dm()
+        msg = f"Error occured updating the renewal date for User: {member.mention}"
+        await dmChan.send(msg)
         return
     
     else:
@@ -289,7 +301,15 @@ async def renew(ctx):
     
 
 
-
+@bot.command()
+@commands.cooldown(1, 15, commands.BucketType.member)
+async def test(ctx):
+    logging.info("Test cmd called.")
+    msg = f"Test Message. Bot working!"
+    developer = await bot.fetch_user(int(DEV_ID))
+    dmChan = await developer.create_dm()
+    await dmChan.send(msg)
+    return
 
 
 # @bot.command()
@@ -330,7 +350,7 @@ async def renew(ctx):
 @bot.command()
 @discord.ext.commands.dm_only()
 @commands.cooldown(1, 60 * 5, commands.BucketType.member)
-async def restartServer(ctx, server_ip:str):
+async def restartserver(ctx, server_ip:str):
     """Method to reset a server / reboot it. This force shuts down and starts up."""
 
     database = databaseMongo.Database(MONGO_USER, MONGO_PASSWORD)
@@ -361,7 +381,7 @@ async def restartServer(ctx, server_ip:str):
 @bot.command()
 @discord.ext.commands.dm_only()
 @commands.cooldown(1, 60 * 60, commands.BucketType.member)
-async def resetPassword(ctx, server_ip:str):
+async def resetpassword(ctx, server_ip:str):
     """Method to reset the password associated with the Administrator User."""
 
     database = databaseMongo.Database(MONGO_USER, MONGO_PASSWORD)
@@ -395,6 +415,62 @@ async def resetPassword(ctx, server_ip:str):
     
                     return
         await ctx.channel.send("Provide a valid server IP to perform actions.")
+        return
+
+@bot.command()
+@discord.ext.commands.dm_only()
+@commands.cooldown(1, 60 * 60, commands.BucketType.member)
+async def duedate(ctx, server_ip:str):
+    """Method to reset the password associated with the Administrator User."""
+
+    database = databaseMongo.Database(MONGO_USER, MONGO_PASSWORD)
+
+    current_user = database.checkCurrentUser(ctx.author.id)
+
+    #  assure that the user is stored in the DB
+    if current_user == True:
+        # retrieve the users current information
+        userInformation = database.returnUserInformation(ctx.author.id)
+
+        if userInformation == None:
+            return
+        hyonix_api = hyonix.HyonixAPI(HYONIX_TOKEN)
+
+        for server in userInformation["servers"]:
+            if server["server_ip"] == server_ip:
+                dueDate = server["next_billing_date"]
+                await ctx.channel.send(f"The next billing date for Server IP: {server_ip} is {dueDate}.")
+                return
+        await ctx.channel.send("Provide a valid server IP to perform actions.")
+        return
+            
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        msg = "This command is on cooldown, please try again in {:.0f}s".format(error.retry_after)
+        await ctx.channel.send(msg)
+        return
+    elif isinstance(error, commands.CommandNotFound):
+        logging.info(f"{ctx.author} provided an invalid command.")
+        return
+    elif isinstance(error, commands.TooManyArguments):
+        logging.info(f"{ctx.author} provided an too many arguments for a command.")
+        await ctx.channel.send("Please invoke the command correctly, and provide valid arguments.")
+        return
+    elif isinstance(error, commands.CheckFailure):
+        logging.info(f"Check failure.")
+        return
+    elif isinstance(error, commands.UserInputError):
+        logging.info(f"User provided invalid input for a command")
+        await ctx.channel.send("Please invoke the command correctly, and provide valid arguments.")
+        return
+    else:
+        logging.info("Uncaught exception for a command.")
+        developer = await bot.fetch_user(DEV_ID)
+        dmChan = await developer.create_dm()
+        msg = f"Unknown command error caused by User: {ctx.author.mention}"
+        await dmChan.send(msg)
         return
 
 
